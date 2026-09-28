@@ -1,0 +1,306 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Users
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  email        String   @unique
+  passwordHash String?
+  profileImage String? 
+  isAdmin Boolean @default(false)
+  googleId String? @unique 
+  tokenVersion Int @default(0)
+  createdAt DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  songs             Song[]             @relation("UploadedSongs")
+  playlists         Playlist[]
+  downloads         Download[]
+  likedSongs        LikedSong[]
+  listeningHistory  ListeningHistory[]
+  hostedRooms       Room[]             @relation("HostedRooms")
+  roomMemberships   RoomMember[]
+  passwordResetTokens PasswordResetToken[]
+  emailChangeVerifications EmailChangeVerification[]
+
+  @@index([username])
+  @@index([email])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model EmailChangeVerification {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  newEmail  String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model EmailLoginCode {
+  id        String    @id @default(cuid())
+  email     String
+  code      String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  attempts  Int       @default(0)
+
+  @@index([email])
+}
+
+// ---------------------------------------------------------------------------
+// Music library
+// ---------------------------------------------------------------------------
+
+model Artist {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  imageUrl  String?
+  createdAt DateTime @default(now())
+
+  songs  Song[]
+  albums Album[]
+}
+
+model Album {
+  id         String   @id @default(cuid())
+  title      String
+  artworkUrl String?
+  artistId   String?
+  artist     Artist?  @relation(fields: [artistId], references: [id], onDelete: SetNull)
+  createdAt  DateTime @default(now())
+
+  songs Song[]
+
+  @@index([artistId])
+}
+
+model Song {
+  id             String   @id @default(cuid())
+  title          String
+  artistName     String
+  artistId       String?
+  artist         Artist?  @relation(fields: [artistId], references: [id], onDelete: SetNull)
+  albumName      String?
+  albumId        String?
+  album          Album?   @relation(fields: [albumId], references: [id], onDelete: SetNull)
+  audioUrl       String
+  audioStorageKey String
+  artworkUrl     String?
+  artworkStorageKey String?
+  duration       Float
+  genre          String?
+  uploadedById   String
+  uploadedBy     User     @relation("UploadedSongs", fields: [uploadedById], references: [id], onDelete: Cascade)
+  playCount      Int      @default(0)
+  downloadCount  Int      @default(0)
+  isDownloadable Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  playlistEntries  PlaylistSong[]
+  downloads        Download[]
+  likedBy          LikedSong[]
+  listeningHistory ListeningHistory[]
+  roomQueueEntries RoomQueueSong[]
+
+  @@index([title])
+  @@index([artistName])
+  @@index([albumName])
+  @@index([genre])
+  @@index([uploadedById])
+  @@index([createdAt])
+  @@index([playCount])
+}
+
+// ---------------------------------------------------------------------------
+// Playlists
+// ---------------------------------------------------------------------------
+
+model Playlist {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  artworkUrl  String?
+  ownerId     String
+  owner       User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  songs PlaylistSong[]
+
+  @@index([ownerId])
+}
+
+model PlaylistSong {
+  id         String   @id @default(cuid())
+  playlistId String
+  playlist   Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  songId     String
+  song       Song     @relation(fields: [songId], references: [id], onDelete: Cascade)
+  position   Int
+  addedAt    DateTime @default(now())
+
+  @@unique([playlistId, songId])
+  @@index([playlistId, position])
+}
+
+model Download {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  songId    String
+  song      Song     @relation(fields: [songId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([songId])
+}
+
+model LikedSong { 
+  id String @id @default(cuid()) 
+  userId String 
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade) 
+  songId String 
+  song Song @relation(fields: [songId], references: [id], onDelete: Cascade) 
+  likedAt DateTime @default(now()) 
+  @@unique([userId, songId]) 
+  @@index([userId]) 
+  @@index([songId]) 
+}
+
+model ListeningHistory {
+  id       String   @id @default(cuid())
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  songId   String
+  song     Song     @relation(fields: [songId], references: [id], onDelete: Cascade)
+  playedAt DateTime @default(now())
+
+  @@index([userId, playedAt])
+  @@index([songId])
+}
+
+// ---------------------------------------------------------------------------
+// Listening rooms
+// ---------------------------------------------------------------------------
+
+enum RoomVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum RoomRole {
+  HOST
+  ELDER
+  MEMBER
+}
+
+enum PlaybackState {
+  PLAYING
+  PAUSED
+  STOPPED
+}
+
+model Room {
+  id          String         @id @default(cuid())
+  name        String
+  description String?
+  artworkUrl  String?
+  visibility  RoomVisibility @default(PUBLIC)
+  // Only set (and unique) for private rooms; never exposed in public listings.
+  code        String?        @unique
+  hostId      String
+  host        User           @relation("HostedRooms", fields: [hostId], references: [id], onDelete: Cascade)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  closedAt    DateTime?
+
+  members        RoomMember[]
+  queue          RoomQueueSong[]
+  playbackState  RoomPlaybackState?
+
+  @@index([visibility, closedAt])
+  @@index([hostId])
+}
+
+model RoomMember {
+  id       String   @id @default(cuid())
+  roomId   String
+  room     Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role     RoomRole @default(MEMBER)
+  joinedAt DateTime @default(now())
+  // Whether the member is currently connected (for reconnect / cleanup logic).
+  isConnected Boolean @default(true)
+  leftAt      DateTime?
+
+  @@unique([roomId, userId])
+  @@index([roomId, role])
+}
+
+// A song sitting in a room's shared queue. The (roomId, songId) unique
+// constraint is the backend-enforced guarantee against duplicate songs,
+// even under concurrent inserts from two clients.
+model RoomQueueSong {
+  id       String   @id @default(cuid())
+  roomId   String
+  room     Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  songId   String
+  song     Song     @relation(fields: [songId], references: [id], onDelete: Cascade)
+  position Int
+  addedById String?
+  addedAt  DateTime @default(now())
+
+  @@unique([roomId, songId])
+  @@index([roomId, position])
+}
+
+// Server-authoritative playback state for a room. There is exactly one row
+// per room; clients derive their local playback position from
+// (position, serverTimestamp) plus the wall-clock time elapsed since it was
+// written, per the synchronization algorithm in services/playbackService.ts.
+model RoomPlaybackState {
+  id              String        @id @default(cuid())
+  roomId          String        @unique
+  room            Room          @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  currentSongId   String?
+  state           PlaybackState @default(STOPPED)
+  // Playback position, in seconds, as of serverTimestamp.
+  position        Float         @default(0)
+  // Wall-clock time (ms since epoch) this row was last written by the server.
+  serverTimestamp BigInt
+  // Monotonically increasing version of the queue, bumped on every queue
+  // mutation so clients can detect they have a stale queue snapshot.
+  queueVersion    Int           @default(0)
+  updatedAt       DateTime      @updatedAt
+}

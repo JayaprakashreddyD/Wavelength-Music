@@ -1,0 +1,24 @@
+{
+  "name": "music-room",
+  "private": true,
+  "workspaces": [
+    "packages/server",
+    "packages/web"
+  ],
+  "scripts": {
+    "dev:server": "npm run dev --workspace=packages/server",
+    "dev:web": "npm run dev --workspace=packages/web",
+    "build:server": "npm run build --workspace=packages/server",
+    "build:web": "npm run build --workspace=packages/web",
+    "lint": "eslint packages/server/src packages/web",
+    "test": "npm run test --workspace=packages/server",
+    "prisma:generate": "npm run prisma:generate --workspace=packages/server",
+    "prisma:migrate": "npm run prisma:migrate --workspace=packages/server"
+  },
+  "allowScripts": {
+    "@prisma/client@5.22.0": true,
+    "@prisma/engines@5.22.0": true,
+    "prisma@5.22.0": true,
+    "esbuild@0.28.2": true
+  }
+}
