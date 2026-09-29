@@ -7,6 +7,10 @@ export const s3 = new S3Client({
   endpoint: env.s3.endpoint,
   region: env.s3.region,
   forcePathStyle: env.s3.forcePathStyle,
+  // Supabase Storage implements the S3 protocol but may return a non-AWS
+  // response to the SDK's newer default CRC32 checksum behavior.
+  requestChecksumCalculation: "WHEN_REQUIRED",
+  responseChecksumValidation: "WHEN_REQUIRED",
   credentials: {
     accessKeyId: env.s3.accessKeyId,
     secretAccessKey: env.s3.secretAccessKey,
