@@ -2,6 +2,7 @@ import { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, PutObjectComm
 import { getSignedUrl as createSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { randomUUID } from "crypto";
 import { env } from "@/config/env";
+import { logger } from "@/utils/logger";
 
 export const s3 = new S3Client({
   endpoint: env.s3.endpoint,
@@ -32,14 +33,29 @@ export async function uploadObject(
   if (!/^[a-z0-9]{1,8}$/.test(extension)) throw new Error("Unsupported storage object extension");
   const key = `${opts.folder}/${randomUUID()}.${extension}`;
 
-  await s3.send(
-    new PutObjectCommand({
-      Bucket: env.s3.bucket,
-      Key: key,
-      Body: buffer,
-      ContentType: opts.contentType,
-    })
-  );
+  try {
+    await s3.send(
+      new PutObjectCommand({
+        Bucket: env.s3.bucket,
+        Key: key,
+        Body: buffer,
+        ContentType: opts.contentType,
+      })
+    );
+  } catch (err) {
+    const s3Error = err as Error & {
+      $metadata?: { httpStatusCode?: number; requestId?: string };
+      $response?: { statusCode?: number; headers?: Record<string, string | undefined> };
+    };
+    logger.error("S3 object upload failed", {
+      errorName: s3Error.name,
+      httpStatusCode: s3Error.$metadata?.httpStatusCode ?? s3Error.$response?.statusCode,
+      requestId: s3Error.$metadata?.requestId,
+      contentType: s3Error.$response?.headers?.["content-type"],
+      server: s3Error.$response?.headers?.server,
+    });
+    throw err;
+  }
 
   return { key, url: `${env.s3.publicBaseUrl}/${key}` };
 }
